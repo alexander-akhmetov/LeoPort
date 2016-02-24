@@ -1,34 +1,31 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import handler
-import config
-import service
-import sys
+import getpass
 
-email = config.auth.get('email')
-password = config.auth.get('password')
+import click
 
-export_type = sys.argv[1]
+import kindle
+import services
 
-if export_type == 'text':
-    word_handler = handler.Text(config.sources.get('text'))
-elif export_type == 'kindle':
-    word_handler = handler.Kindle(config.sources.get('kindle'))
-else:
-    raise Exception('unsupported type')
 
-word_handler.read()
+@click.command()
+@click.option('--kindledb', default='vocab.db', help='.db file from Kindle')
+@click.option('--lingualeo-email', help='LinguaLeo email')
+def export(kindledb, lingualeo_email):
+    password = getpass.getpass('LinguaLeo password:')
 
-lingualeo = service.Lingualeo(email, password)
-lingualeo.auth()
+    words = kindle.read_words(kindledb)
 
-for word_dto in word_handler.get():
-    word = word_dto.text.lower().encode('utf-8')
-    translate = lingualeo.get_translates(word)
+    lingualeo = services.LinguaLeo(lingualeo_email, password)
+    lingualeo.auth()
 
-    if translate["is_exist"]:
-        print "Already exists: " + word.strip()
-    else:
-        context = word_dto.context.encode('utf-8')
-        lingualeo.add_word(word, translate["tword"], context)
-        print "Add word: " + word.strip()
+    for word_info in words:
+        translate = lingualeo.get_translate(word_info['text'])
+        if translate['is_exist']:
+            print 'Already exists: %s' % word_info['text']
+        else:
+            lingualeo.add_word(word_info['text'], translate['translated_word'], word_info['context'])
+            print 'Added word: %s' % word_info['text']
+
+
+if __name__ == '__main__':
+    export()
